@@ -1,0 +1,74 @@
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: codecards
+          POSTGRES_PASSWORD: codecards
+          POSTGRES_DB: codecards
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U codecards"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_SERVER: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: codecards
+      POSTGRES_PASSWORD: codecards
+      POSTGRES_DB: codecards
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      JWT_SECRET_KEY: ci-test-secret-key
+      ANTHROPIC_API_KEY: sk-ant-fake-key
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create test database
+        run: psql -h localhost -U codecards -c "CREATE DATABASE codecards_test;"
+        env:
+          PGPASSWORD: codecards
+
+      - name: Run migrations
+        run: alembic upgrade head
+
+      - name: Run tests
+        run: pytest app/tests/ -v

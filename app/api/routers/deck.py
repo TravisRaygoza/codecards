@@ -1,10 +1,11 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.api.schemas.deck import DeckCreate, DeckUpdate, DeckResponse
+from app.api.schemas.pagination import PaginatedResponse
 from app.database.models import User
 from app.database.session import get_session
 from app.services.deck import (
@@ -27,12 +28,14 @@ async def create(
     return await create_deck(current_user.id, deck_data, session)
 
 
-@router.get("/", response_model=list[DeckResponse])
+@router.get("/", response_model=PaginatedResponse[DeckResponse])
 async def get_my_decks(
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    return await get_user_decks(current_user.id, session)
+    return await get_user_decks(current_user.id, session, page, per_page)
 
 
 @router.get("/{deck_id}", response_model=DeckResponse)

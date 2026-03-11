@@ -2,6 +2,8 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+import psycopg2
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -13,6 +15,28 @@ from sqlmodel import SQLModel
 from app.main import app
 from app.database.session import get_session
 from app.config import db_settings
+
+
+def ensure_test_database_exists():
+    """Create the test database if it doesn't exist (idempotent)."""
+    conn = psycopg2.connect(
+        host=db_settings.POSTGRES_SERVER,
+        port=db_settings.POSTGRES_PORT,
+        user=db_settings.POSTGRES_USER,
+        password=db_settings.POSTGRES_PASSWORD,
+        dbname=db_settings.POSTGRES_DB,
+    )
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor = conn.cursor()
+    test_db = f"{db_settings.POSTGRES_DB}_test"
+    cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (test_db,))
+    if not cursor.fetchone():
+        cursor.execute(f'CREATE DATABASE "{test_db}"')
+    cursor.close()
+    conn.close()
+
+
+ensure_test_database_exists()
 
 # Use a separate test database
 TEST_DB_URL = f"postgresql+asyncpg://{db_settings.POSTGRES_USER}:{db_settings.POSTGRES_PASSWORD}@{db_settings.POSTGRES_SERVER}:{db_settings.POSTGRES_PORT}/{db_settings.POSTGRES_DB}_test"
@@ -60,7 +84,6 @@ async def client():
     with (
         patch("app.services.deck.cache_get", new_callable=AsyncMock, return_value=None),
         patch("app.services.deck.cache_set", new_callable=AsyncMock),
-        patch("app.services.deck.cache_delete", new_callable=AsyncMock),
         patch("app.services.deck.cache_delete_pattern", new_callable=AsyncMock),
     ):
         async with AsyncClient(

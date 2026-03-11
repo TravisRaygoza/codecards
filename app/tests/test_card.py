@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import pytest
 
 
@@ -77,8 +79,13 @@ async def test_get_deck_cards(auth_client):
     response = await auth_client.get(f"/cards/?deck_id={deck_id}")
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
-    assert len(data) >= 1
+    assert "items" in data
+    assert "total" in data
+    assert "page" in data
+    assert "per_page" in data
+    assert "total_pages" in data
+    assert isinstance(data["items"], list)
+    assert len(data["items"]) >= 1
 
 
 @pytest.mark.asyncio
@@ -138,3 +145,44 @@ async def test_delete_card(auth_client):
 
     get_response = await auth_client.get(f"/cards/{card_id}")
     assert get_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_card_pagination(auth_client):
+    # Create a deck
+    deck_response = await auth_client.post("/decks/", json={
+        "title": f"Pagination Deck {uuid4().hex[:8]}",
+        "description": "For pagination test",
+        "language": "python",
+        "topic": "general",
+        "is_public": False,
+    })
+    deck_id = deck_response.json()["id"]
+
+    # Create 3 cards
+    for i in range(3):
+        await auth_client.post("/cards/", json={
+            "front": f"Question {i}",
+            "back": f"Answer {i}",
+            "card_type": "qa",
+            "difficulty": 1,
+            "ai_generated": False,
+            "deck_id": deck_id,
+        })
+
+    # Request page 1 with per_page=2
+    response = await auth_client.get(f"/cards/?deck_id={deck_id}&page=1&per_page=2")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    assert data["total"] == 3
+    assert data["page"] == 1
+    assert data["per_page"] == 2
+    assert data["total_pages"] == 2
+
+    # Request page 2
+    response2 = await auth_client.get(f"/cards/?deck_id={deck_id}&page=2&per_page=2")
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert len(data2["items"]) == 1
+    assert data2["page"] == 2

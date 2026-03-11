@@ -1,8 +1,9 @@
-
-from fastapi import HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+import math
 from uuid import UUID
 
+from fastapi import HTTPException
+from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.api.schemas.card import CardCreate, CardUpdate
@@ -27,13 +28,26 @@ async def create_card(deck_id: UUID, card_data: CardCreate, session: AsyncSessio
 
     return new_card
 
-async def get_deck_cards(deck_id: UUID, session: AsyncSession):
-    statement = select(Card).where(Card.deck_id == deck_id)
+async def get_deck_cards(deck_id: UUID, session: AsyncSession, page: int = 1, per_page: int = 20):
+    # Count total items
+    count_stmt = select(func.count()).select_from(Card).where(Card.deck_id == deck_id)
+    total = (await session.execute(count_stmt)).scalar()
+
+    # Query one page
+    offset = (page - 1) * per_page
+    statement = select(Card).where(Card.deck_id == deck_id).offset(offset).limit(per_page)
     result = await session.execute(statement)
     cards = result.scalars().all()
 
+    total_pages = math.ceil(total / per_page) if total > 0 else 0
 
-    return cards
+    return {
+        "items": cards,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": total_pages,
+    }
 
 async def get_card(card_id: UUID, session: AsyncSession):
     statement = select(Card).where(Card.id == card_id)

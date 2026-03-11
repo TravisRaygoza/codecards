@@ -45,8 +45,13 @@ async def test_get_user_decks(auth_client):
     response = await auth_client.get("/decks/")
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
-    assert len(data) >= 1
+    assert "items" in data
+    assert "total" in data
+    assert "page" in data
+    assert "per_page" in data
+    assert "total_pages" in data
+    assert isinstance(data["items"], list)
+    assert len(data["items"]) >= 1
 
 
 @pytest.mark.asyncio
@@ -105,3 +110,33 @@ async def test_delete_deck(auth_client):
     # Verify it's gone
     get_response = await auth_client.get(f"/decks/{deck_id}")
     assert get_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_deck_pagination(auth_client):
+    # Create 3 decks
+    for i in range(3):
+        await auth_client.post("/decks/", json={
+            "title": f"Page Deck {uuid4().hex[:8]}",
+            "description": "Pagination test",
+            "language": "python",
+            "topic": "general",
+            "is_public": False,
+        })
+
+    # Request page 1 with per_page=2
+    response = await auth_client.get("/decks/?page=1&per_page=2")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    assert data["page"] == 1
+    assert data["per_page"] == 2
+    assert data["total"] >= 3
+    assert data["total_pages"] >= 2
+
+    # Request page 2
+    response2 = await auth_client.get("/decks/?page=2&per_page=2")
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert len(data2["items"]) >= 1
+    assert data2["page"] == 2

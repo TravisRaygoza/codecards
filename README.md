@@ -33,8 +33,7 @@ app/
 ├── main.py                  # FastAPI entry point
 ├── config.py                # Pydantic settings (env vars)
 ├── core/
-│   ├── security.py          # JWT, password hashing, OAuth2
-│   └── exceptions.py        # Custom exceptions
+│   └── security.py          # JWT, password hashing, OAuth2
 ├── database/
 │   ├── models.py            # SQLModel database models
 │   ├── session.py           # Async engine and session setup
@@ -52,6 +51,7 @@ app/
 │       ├── user.py          # User request/response schemas
 │       ├── deck.py          # Deck schemas
 │       ├── card.py          # Card schemas
+│       ├── pagination.py   # Generic paginated response
 │       ├── study.py         # Study schemas
 │       └── ai.py            # AI schemas
 ├── services/
@@ -153,7 +153,7 @@ The API will be available at `http://localhost:8000`. Interactive docs at `/scal
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/decks/` | Create deck |
-| `GET` | `/decks/` | List user's decks |
+| `GET` | `/decks/?page=1&per_page=20` | List user's decks (paginated) |
 | `GET` | `/decks/{deck_id}` | Get deck |
 | `PATCH` | `/decks/{deck_id}` | Update deck |
 | `DELETE` | `/decks/{deck_id}` | Delete deck |
@@ -163,7 +163,7 @@ The API will be available at `http://localhost:8000`. Interactive docs at `/scal
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/cards/` | Create card |
-| `GET` | `/cards/?deck_id={id}` | List cards in deck |
+| `GET` | `/cards/?deck_id={id}&page=1&per_page=20` | List cards in deck (paginated) |
 | `GET` | `/cards/{card_id}` | Get card |
 | `PATCH` | `/cards/{card_id}` | Update card |
 | `DELETE` | `/cards/{card_id}` | Delete card |
@@ -187,12 +187,19 @@ The API will be available at `http://localhost:8000`. Interactive docs at `/scal
 ## Running Tests
 
 ```bash
-pytest app/tests/             # all tests
-pytest app/tests/test_sm2.py  # SM-2 unit tests only
-pytest -v                     # verbose output
+# Local
+pytest app/tests/ -v
+
+# Via Docker (auto-creates test database)
+docker compose run app pytest app/tests/ -v
+
+# SM-2 unit tests only
+pytest app/tests/test_sm2.py
 ```
 
-Tests use a separate `_test` database created automatically. Redis is mocked to avoid event loop conflicts.
+Tests use a separate `_test` database. The test database is auto-created by `conftest.py` if it doesn't exist. Redis is mocked to avoid event loop conflicts.
+
+CI runs automatically on push/PR to `main` via GitHub Actions.
 
 ## Architecture
 
